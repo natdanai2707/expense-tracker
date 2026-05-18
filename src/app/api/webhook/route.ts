@@ -3,7 +3,6 @@ import crypto from "crypto";
 import { addExpense, getMonthlySummary, CATEGORIES, type CategoryId } from "@/lib/supabase";
 import { parseTextExpense, ocrReceiptImage, buildConfirmFlexMessage, buildReportText } from "@/lib/parser";
 
-// In-memory pending store (TTL 5 min)
 const pending = new Map<string, any>();
 
 function verify(body: string, sig: string) {
@@ -55,9 +54,9 @@ export async function POST(req: NextRequest) {
   for (const event of events) {
     const { replyToken, source, type, message, postback } = event;
     const userId = source?.userId || "unknown";
+    const groupTarget = source?.groupId || source?.roomId || userId;
 
     try {
-      // ── Text message ──
       if (type === "message" && message?.type === "text") {
         const text = message.text.trim();
 
@@ -73,10 +72,7 @@ export async function POST(req: NextRequest) {
         }
 
         if (text === "/help" || text === "/คู่มือ") {
-          await reply(replyToken, [{
-            type: "text",
-            text: `📱 วิธีใช้งาน\n\n📸 ถ่ายรูปใบเสร็จ → Bot อ่านอัตโนมัติ\n\n✍️ พิมพ์รายการ เช่น:\n• "ค่าน้ำมัน 450 ส่วนตัว"\n• "Kerry 1200 with_layers"\n• "วัสดุ 8500 เหล็ก"\n\n/report → สรุปเดือนนี้\n/link → เปิด Dashboard`,
-          }]);
+          await reply(replyToken, [{ type: "text", text: `📱 วิธีใช้งาน\n\n📸 ถ่ายรูปใบเสร็จ → Bot อ่านอัตโนมัติ\n\n✍️ พิมพ์รายการ เช่น:\n• "ค่าน้ำมัน 450 ส่วนตัว"\n• "Kerry 1200 with_layers"\n• "วัสดุ 8500 เหล็ก"\n\n/report → สรุปเดือนนี้\n/link → เปิด Dashboard` }]);
           continue;
         }
 
@@ -84,7 +80,7 @@ export async function POST(req: NextRequest) {
         if (parsed && parsed.amount > 0) {
           const tempId = `${userId}_${Date.now()}`;
           const name = await getProfile(userId);
-          pending.set(tempId, { ...parsed, added_by: name, line_user_id: userId });
+          pending.set(tempId, { ...parsed, added_by: name, line_user_id: userId, replyTarget: groupTarget });
           setTimeout(() => pending.delete(tempId), 5 * 60 * 1000);
           await reply(replyToken, [buildConfirmFlexMessage(parsed, tempId) as any]);
         } else {
@@ -92,30 +88,25 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // ── Image message ──
       if (type === "message" && message?.type === "image") {
-        // groupId หรือ roomId ถ้ามี ไม่งั้น fallback userId
-        const replyTarget = source?.groupId || source?.roomId || userId;
-
         await reply(replyToken, [{ type: "text", text: "⏳ กำลังอ่านใบเสร็จ..." }]);
 
         const img = await getImage(message.id);
-        if (!img) { await push(replyTarget, [{ type: "text", text: "ดาวน์โหลดรูปไม่ได้ครับ ลองส่งใหม่" }]); continue; }
+        if (!img) { await push(groupTarget, [{ type: "text", text: "ดาวน์โหลดรูปไม่ได้ครับ ลองส่งใหม่" }]); continue; }
 
         const parsed = await ocrReceiptImage(img.base64, img.mediaType);
         if (!parsed || parsed.amount <= 0) {
-          await push(replyTarget, [{ type: "text", text: "อ่านใบเสร็จไม่ชัดครับ 😅\nลองพิมพ์เองได้เลย เช่น 'ค่าไฟ 572 ส่วนตัว'" }]);
+          await push(groupTarget, [{ type: "text", text: "อ่านใบเสร็จไม่ชัดครับ 😅\nลองพิมพ์เองได้เลย เช่น 'ค่าไฟ 572 ส่วนตัว'" }]);
           continue;
         }
 
         const tempId = `${userId}_${Date.now()}`;
         const name = await getProfile(userId);
-        pending.set(tempId, { ...parsed, added_by: name, line_user_id: userId });
+        pending.set(tempId, { ...parsed, added_by: name, line_user_id: userId, replyTarget: groupTarget });
         setTimeout(() => pending.delete(tempId), 5 * 60 * 1000);
-        await push(replyTarget, [buildConfirmFlexMessage(parsed, tempId) as any]);
+        await push(groupTarget, [buildConfirmFlexMessage(parsed, tempId) as any]);
       }
 
-      // ── Postback ──
       if (type === "postback") {
         const params = new URLSearchParams(postback.data);
         const action = params.get("action");
@@ -127,6 +118,7 @@ export async function POST(req: NextRequest) {
         }
 
         const item = pending.get(tempId);
+        const itemTarget = item.replyTarget || groupTarget;
 
         if (action === "cat") {
           const newCat = params.get("cat") as CategoryId;
@@ -147,12 +139,8 @@ export async function POST(req: NextRequest) {
             line_user_id: exp.line_user_id,
           });
           pending.delete(tempId);
-
           const cat = CATEGORIES[exp.category as CategoryId];
-          await reply(replyToken, [{
-            type: "text",
-            text: `✅ บันทึกแล้วครับ!\n\n🏪 ${exp.vendor}\n💰 ${exp.amount.toLocaleString("th-TH")} บาท\n${cat.emoji} ${cat.label}`,
-          }]);
+          await push(itemTarget, [{ type: "text", text: `✅ บันทึกแล้วครับ!\n\n🏪 ${exp.vendor}\n💰 ${exp.amount.toLocaleString("th-TH")} บาท\n${cat.emoji} ${cat.label}` }]);
         }
 
         if (action === "cancel") {
