@@ -94,14 +94,17 @@ export async function POST(req: NextRequest) {
 
       // ── Image message ──
       if (type === "message" && message?.type === "image") {
+        // groupId หรือ roomId ถ้ามี ไม่งั้น fallback userId
+        const replyTarget = source?.groupId || source?.roomId || userId;
+
         await reply(replyToken, [{ type: "text", text: "⏳ กำลังอ่านใบเสร็จ..." }]);
 
         const img = await getImage(message.id);
-        if (!img) { await push(userId, [{ type: "text", text: "ดาวน์โหลดรูปไม่ได้ครับ ลองส่งใหม่" }]); continue; }
+        if (!img) { await push(replyTarget, [{ type: "text", text: "ดาวน์โหลดรูปไม่ได้ครับ ลองส่งใหม่" }]); continue; }
 
         const parsed = await ocrReceiptImage(img.base64, img.mediaType);
         if (!parsed || parsed.amount <= 0) {
-          await push(userId, [{ type: "text", text: "อ่านใบเสร็จไม่ชัดครับ 😅\nลองพิมพ์เองได้เลย เช่น 'ค่าไฟ 572 ส่วนตัว'" }]);
+          await push(replyTarget, [{ type: "text", text: "อ่านใบเสร็จไม่ชัดครับ 😅\nลองพิมพ์เองได้เลย เช่น 'ค่าไฟ 572 ส่วนตัว'" }]);
           continue;
         }
 
@@ -109,7 +112,7 @@ export async function POST(req: NextRequest) {
         const name = await getProfile(userId);
         pending.set(tempId, { ...parsed, added_by: name, line_user_id: userId });
         setTimeout(() => pending.delete(tempId), 5 * 60 * 1000);
-        await push(userId, [buildConfirmFlexMessage(parsed, tempId) as any]);
+        await push(replyTarget, [buildConfirmFlexMessage(parsed, tempId) as any]);
       }
 
       // ── Postback ──
