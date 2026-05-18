@@ -6,14 +6,30 @@ export const supabase = createClient(
 );
 
 export const CATEGORIES = {
-  personal:    { label: "ส่วนตัว",          emoji: "👤", color: "#6366f1" },
-  with_layers: { label: "WITH LAYERS",       emoji: "🖊️", color: "#f59e0b" },
-  met:         { label: "MET Furniture",     emoji: "🪑", color: "#10b981" },
-  steel:       { label: "เหล็กใต้ / S-2000", emoji: "⚙️", color: "#ef4444" },
-  other:       { label: "อื่นๆ",             emoji: "📦", color: "#8b5cf6" },
+  personal:     { label: "ส่วนตัว",          color: "#6366f1" },
+  with_layers:  { label: "WITH LAYERS",       color: "#f59e0b" },
+  met:          { label: "MET Furniture",     color: "#10b981" },
+  steel_s2000:  { label: "S-2000",            color: "#ef4444" },
+  south_steel:  { label: "เหล็กใต้",          color: "#f97316" },
+  other:        { label: "อื่นๆ",             color: "#8b5cf6" },
 } as const;
 
+export const PERSONAL_SUB_CATEGORIES = [
+  "ค่าอาหาร",
+  "อาหารนอกบ้าน/คาเฟ่",
+  "ค่าที่พัก/สาธารณูปโภค",
+  "ค่าเดินทาง",
+  "ค่ารักษาพยาบาล",
+  "ช้อปปิ้ง",
+  "สันทนาการ",
+  "ท่องเที่ยว",
+  "ของขวัญ",
+  "การออม/ลงทุน",
+  "อื่นๆ",
+] as const;
+
 export type CategoryId = keyof typeof CATEGORIES;
+export type PersonalSubCategory = typeof PERSONAL_SUB_CATEGORIES[number];
 
 export interface Expense {
   id?: string;
@@ -21,6 +37,7 @@ export interface Expense {
   vendor: string;
   amount: number;
   category: CategoryId;
+  sub_category: string;
   note: string;
   added_by: string;
   line_user_id: string;
@@ -33,29 +50,31 @@ export async function addExpense(expense: Omit<Expense, "id" | "created_at">) {
     .insert([expense])
     .select()
     .single();
-
   if (error) throw error;
   return data;
 }
 
-export async function getExpenses(options?: {
-  category?: string;
-  month?: string;
-}) {
+export async function updateExpense(id: string, updates: Partial<Expense>) {
+  const { data, error } = await supabase
+    .from("expenses")
+    .update(updates)
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function getExpenses(options?: { category?: string; month?: string }) {
   let query = supabase
     .from("expenses")
     .select("*")
     .order("date", { ascending: false })
     .order("created_at", { ascending: false });
 
-  if (options?.category) {
-    query = query.eq("category", options.category);
-  }
-
+  if (options?.category) query = query.eq("category", options.category);
   if (options?.month) {
-    const start = `${options.month}-01`;
-    const end = `${options.month}-31`;
-    query = query.gte("date", start).lte("date", end);
+    query = query.gte("date", `${options.month}-01`).lte("date", `${options.month}-31`);
   }
 
   const { data, error } = await query;
@@ -71,11 +90,11 @@ export async function getMonthlySummary(month?: string) {
     month: targetMonth,
     total: 0,
     count: expenses.length,
-    byCategory: {} as Record<string, { total: number; count: number; label: string; emoji: string; color: string }>,
+    byCategory: {} as Record<string, { total: number; count: number; label: string; color: string; bySubCategory: Record<string, number> }>,
   };
 
   for (const [id, cat] of Object.entries(CATEGORIES)) {
-    summary.byCategory[id] = { total: 0, count: 0, ...cat };
+    summary.byCategory[id] = { total: 0, count: 0, ...cat, bySubCategory: {} };
   }
 
   for (const e of expenses) {
@@ -83,6 +102,10 @@ export async function getMonthlySummary(month?: string) {
     if (summary.byCategory[e.category]) {
       summary.byCategory[e.category].total += e.amount;
       summary.byCategory[e.category].count += 1;
+      if (e.sub_category) {
+        summary.byCategory[e.category].bySubCategory[e.sub_category] =
+          (summary.byCategory[e.category].bySubCategory[e.sub_category] || 0) + e.amount;
+      }
     }
   }
 
@@ -90,7 +113,5 @@ export async function getMonthlySummary(month?: string) {
 }
 
 export function formatTHB(n: number) {
-  return new Intl.NumberFormat("th-TH", {
-    style: "currency", currency: "THB", maximumFractionDigits: 0,
-  }).format(n);
+  return new Intl.NumberFormat("th-TH", { style: "currency", currency: "THB", maximumFractionDigits: 0 }).format(n);
 }
