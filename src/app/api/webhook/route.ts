@@ -163,7 +163,7 @@ export async function POST(req: NextRequest) {
         }
 
         // ── ตรวจว่ามี pending รอแก้ไขไหม ──
-        const userPendingKey = [...pending.keys()].find(k => k.startsWith(`${userId}_`) && pending.get(k).awaitingEdit);
+        const userPendingKey = Array.from(pending.keys()).find(k => k.startsWith(`${userId}_`) && pending.get(k).awaitingEdit);
         if (userPendingKey) {
           const item = pending.get(userPendingKey);
           const amountMatch = text.match(/^(\d+(?:\.\d{1,2})?)$/);
