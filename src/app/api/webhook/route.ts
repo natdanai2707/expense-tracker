@@ -47,9 +47,9 @@ async function getImage(msgId: string): Promise<{ base64: string; mediaType: str
 // Category short labels for buttons (no emoji, max 12 chars)
 const CAT_SHORT: Record<string, string> = {
   personal:    "ส่วนตัว",
-  with_layers: "W.LAYERS",
-  met:         "MET",
-  steel:       "เหล็กใต้",
+  with_layers: "WITH LAYERS",
+  met:         "MET Furniture",
+  steel:       "เหล็กใต้/S-2000",
   other:       "อื่นๆ",
 };
 
@@ -91,13 +91,27 @@ function buildFlexMessage(item: any, tempId: string) {
         type: "box", layout: "vertical", spacing: "sm",
         contents: [
           {
-            type: "box", layout: "horizontal", spacing: "xs",
-            contents: Object.entries(CAT_SHORT).map(([id, label]) => ({
-              type: "button",
-              action: { type: "postback", label, data: `action=cat&id=${tempId}&cat=${id}`, displayText: `เปลี่ยนหมวดเป็น ${label}` },
-              style: id === item.category ? "primary" : "secondary",
-              height: "sm", flex: 1,
-            })),
+            type: "box", layout: "vertical", spacing: "xs",
+            contents: [
+              {
+                type: "box", layout: "horizontal", spacing: "xs",
+                contents: ["personal", "with_layers", "met"].map(id => ({
+                  type: "button",
+                  action: { type: "postback", label: CAT_SHORT[id], data: `action=cat&id=${tempId}&cat=${id}`, displayText: `เปลี่ยนหมวดเป็น ${CAT_SHORT[id]}` },
+                  style: id === item.category ? "primary" : "secondary",
+                  height: "sm", flex: 1,
+                })),
+              },
+              {
+                type: "box", layout: "horizontal", spacing: "xs",
+                contents: ["steel", "other"].map(id => ({
+                  type: "button",
+                  action: { type: "postback", label: CAT_SHORT[id], data: `action=cat&id=${tempId}&cat=${id}`, displayText: `เปลี่ยนหมวดเป็น ${CAT_SHORT[id]}` },
+                  style: id === item.category ? "primary" : "secondary",
+                  height: "sm", flex: 1,
+                })),
+              },
+            ],
           },
           {
             type: "button",
