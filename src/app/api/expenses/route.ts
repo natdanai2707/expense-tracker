@@ -20,7 +20,8 @@ export async function GET(req: NextRequest) {
         d.setMonth(d.getMonth() - i);
         const m = d.toISOString().slice(0, 7);
         const summary = await getMonthlySummary(m, group_id);
-        results.push({ month: m, ...summary });
+        const { month: _m, ...summaryRest } = summary;
+        results.push({ month: m, ...summaryRest });
       }
       return NextResponse.json(results);
     }
