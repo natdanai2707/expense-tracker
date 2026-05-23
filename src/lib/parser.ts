@@ -28,16 +28,16 @@ const SUB_CAT_KEYWORDS: Record<string, string[]> = {
 };
 
 const INCOME_KEYWORDS: Record<string, string[]> = {
-  "เงินเดือน":              ["เงินเดือน","salary","เดือน"],
-  "รายรับจาก MET":         ["met","รายรับ met","เงิน met"],
-  "รายรับจาก With Layers": ["with layers","withlayers","layers","รายรับ wl"],
+  "เงินเดือน":              ["เงินเดือน","salary"],
+  "รายรับจาก MET":         ["met","รายรับ met"],
+  "รายรับจาก With Layers": ["with layers","withlayers","layers","wl"],
   "เงินปันผล":             ["ปันผล","dividend"],
-  "ค่าเช่า":               ["ค่าเช่า","เช่า","rent"],
+  "ค่าเช่า":               ["รับค่าเช่า","rent income"],
   "เงินคืนบัตรเครดิต":     ["คืนบัตร","cashback","เงินคืน"],
   "รายรับจากอื่นๆ":        ["รายรับ","ได้รับ","โอนเข้า","รับเงิน"],
 };
 
-const INCOME_TRIGGER = ["รับ","ได้รับ","income","รายรับ","เงินเดือน","ปันผล","ค่าเช่า","cashback","เงินคืน"];
+const INCOME_TRIGGER = ["รับ","ได้รับ","income","รายรับ","เงินเดือน","ปันผล","cashback","เงินคืน"];
 
 const CAT_KEYWORDS: Record<CategoryId, string[]> = {
   personal:    ["ส่วนตัว","personal"],
@@ -46,6 +46,11 @@ const CAT_KEYWORDS: Record<CategoryId, string[]> = {
   steel_s2000: ["s-2000","s2000","เบิก s2000"],
   south_steel: ["เหล็กใต้","south steel","southsteel"],
   other:       [],
+};
+
+const CAT_LABELS: Record<string, string> = {
+  personal: "ส่วนตัว", with_layers: "WITH LAYERS", met: "MET",
+  steel_s2000: "S-2000", south_steel: "เหล็กใต้", other: "อื่นๆ",
 };
 
 function detectSubCategory(text: string): string {
@@ -71,16 +76,13 @@ export function parseTextExpense(text: string): ParsedExpense | null {
   if (amount <= 0) return null;
 
   const lower = text.toLowerCase();
-
-  // Detect income
   const isIncome = INCOME_TRIGGER.some(kw => lower.includes(kw));
+
   if (isIncome) {
     const income_category = detectIncomeCategory(text);
-    const vendor = income_category;
-    return { vendor, amount, category: "other", sub_category: "", note: text, type: "income", income_category };
+    return { vendor: income_category, amount, category: "other", sub_category: "", note: text, type: "income", income_category };
   }
 
-  // Detect expense category
   let category: CategoryId = "personal";
   for (const [cat, keywords] of Object.entries(CAT_KEYWORDS) as [CategoryId, string[]][]) {
     if (cat === "personal" || cat === "other") continue;
@@ -106,7 +108,7 @@ export async function ocrReceiptImage(imageBase64: string, mediaType: string): P
         content: [
           { type: "image", source: { type: "base64", media_type: mediaType as any, data: imageBase64 } },
           { type: "text", text: `วิเคราะห์ใบเสร็จในรูป ตอบเป็น JSON เท่านั้น:
-{"vendor":"ชื่อร้าน","amount":0,"date":"YYYY-MM-DD หรือ null","note":"รายละเอียดสั้นๆ","type":"expense","category":"personal/with_layers/met/steel_s2000/south_steel/other","sub_category":"หมวดย่อย (ถ้า personal)","income_category":""}` },
+{"vendor":"ชื่อร้าน","amount":0,"date":"YYYY-MM-DD หรือ null","note":"รายละเอียดสั้นๆ","type":"expense","category":"personal/with_layers/met/steel_s2000/south_steel/other","sub_category":"หมวดย่อย ถ้า personal","income_category":""}` },
         ],
       }],
     });
@@ -131,14 +133,12 @@ export async function ocrReceiptImage(imageBase64: string, mediaType: string): P
   }
 }
 
-const CAT_LABELS: Record<string, string> = {
-  personal: "ส่วนตัว", with_layers: "WITH LAYERS", met: "MET",
-  steel_s2000: "S-2000", south_steel: "เหล็กใต้", other: "อื่นๆ",
-};
-
 export function buildFlexMessage(item: any, tempId: string, groupCats: string[]) {
   const isIncome = item.type === "income";
   const label = isIncome ? (item.income_category || "รายรับ") : (CAT_LABELS[item.category] || "อื่นๆ");
+  const accentColor = isIncome ? "#10b981" : "#6366f1";
+
+  // Split expense categories into rows of 3
   const rows: string[][] = [];
   for (let i = 0; i < groupCats.length; i += 3) rows.push(groupCats.slice(i, i + 3));
 
@@ -153,7 +153,7 @@ export function buildFlexMessage(item: any, tempId: string, groupCats: string[])
         contents: [
           { type: "text", text: isIncome ? "รายรับ" : "รายจ่าย", size: "xs", color: isIncome ? "#10b981" : "#ef4444", weight: "bold" },
           { type: "text", text: item.vendor, weight: "bold", size: "lg", color: "#111111" },
-          { type: "text", text: `${Number(item.amount).toLocaleString("th-TH")} บาท`, size: "xxl", weight: "bold", color: isIncome ? "#10b981" : "#6366f1", margin: "xs" },
+          { type: "text", text: `${Number(item.amount).toLocaleString("th-TH")} บาท`, size: "xxl", weight: "bold", color: accentColor, margin: "xs" },
           { type: "separator", margin: "md" },
           { type: "box", layout: "horizontal", margin: "md", contents: [
             { type: "text", text: isIncome ? "ประเภท" : "หมวด", size: "sm", color: "#888888", flex: 2 },
@@ -178,10 +178,22 @@ export function buildFlexMessage(item: any, tempId: string, groupCats: string[])
         ],
       },
       footer: {
-        type: "box", layout: "horizontal", spacing: "sm", paddingAll: "14px",
+        type: "box", layout: "vertical", spacing: "xs", paddingAll: "14px",
         contents: [
-          { type: "button", style: "secondary", flex: 1, height: "sm", action: { type: "postback", label: "ยกเลิก", data: `action=cancel&id=${tempId}`, displayText: "ยกเลิก" } },
-          { type: "button", style: "primary", flex: 2, height: "sm", color: isIncome ? "#10b981" : "#6366f1", action: { type: "postback", label: "บันทึก", data: `action=save&id=${tempId}`, displayText: "บันทึก" } },
+          {
+            type: "box", layout: "horizontal", spacing: "xs",
+            contents: [
+              { type: "button", style: "secondary", flex: 1, height: "sm", action: { type: "postback", label: "แก้จำนวน", data: `action=edit_amount&id=${tempId}`, displayText: "แก้จำนวนเงิน" } },
+              { type: "button", style: "secondary", flex: 1, height: "sm", action: { type: "postback", label: "แก้ร้านค้า", data: `action=edit_vendor&id=${tempId}`, displayText: "แก้ชื่อร้านค้า" } },
+            ],
+          },
+          {
+            type: "box", layout: "horizontal", spacing: "xs",
+            contents: [
+              { type: "button", style: "secondary", flex: 1, height: "sm", action: { type: "postback", label: "ยกเลิก", data: `action=cancel&id=${tempId}`, displayText: "ยกเลิก" } },
+              { type: "button", style: "primary", flex: 2, height: "sm", color: accentColor, action: { type: "postback", label: "บันทึก", data: `action=save&id=${tempId}`, displayText: "บันทึก" } },
+            ],
+          },
         ],
       },
     },
@@ -191,12 +203,12 @@ export function buildFlexMessage(item: any, tempId: string, groupCats: string[])
 export function buildReportText(summary: any): string {
   const lines = [
     `สรุปเดือนนี้`,
-    `รายรับ: ${summary.totalIncome.toLocaleString("th-TH")} บาท`,
-    `รายจ่าย: ${summary.totalExpense.toLocaleString("th-TH")} บาท`,
-    `คงเหลือ: ${summary.net.toLocaleString("th-TH")} บาท\n`,
+    `รายรับ: ${(summary.totalIncome||0).toLocaleString("th-TH")} บาท`,
+    `รายจ่าย: ${(summary.totalExpense||0).toLocaleString("th-TH")} บาท`,
+    `คงเหลือ: ${(summary.net||0).toLocaleString("th-TH")} บาท\n`,
   ];
 
-  if (Object.keys(summary.byIncomeCategory).length > 0) {
+  if (summary.byIncomeCategory && Object.keys(summary.byIncomeCategory).length > 0) {
     lines.push("รายรับ:");
     for (const [cat, amt] of Object.entries(summary.byIncomeCategory) as any) {
       lines.push(`  · ${cat}: ${amt.toLocaleString("th-TH")} บาท`);
