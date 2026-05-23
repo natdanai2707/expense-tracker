@@ -185,15 +185,10 @@ export function buildFlexMessage(item: any, tempId: string, groupCats: string[])
             contents: [
               { type: "button", style: "secondary", flex: 1, height: "sm", action: { type: "postback", label: "แก้จำนวน", data: `action=edit_amount&id=${tempId}`, displayText: "แก้จำนวนเงิน" } },
               { type: "button", style: "secondary", flex: 1, height: "sm", action: { type: "postback", label: "แก้ร้านค้า", data: `action=edit_vendor&id=${tempId}`, displayText: "แก้ชื่อร้านค้า" } },
-            ],
-          },
-          {
-            type: "box", layout: "horizontal", spacing: "xs",
-            contents: [
               { type: "button", style: "secondary", flex: 1, height: "sm", action: { type: "postback", label: "ยกเลิก", data: `action=cancel&id=${tempId}`, displayText: "ยกเลิก" } },
-              { type: "button", style: "primary", flex: 2, height: "sm", color: accentColor, action: { type: "postback", label: "บันทึก", data: `action=save&id=${tempId}`, displayText: "บันทึก" } },
             ],
           },
+          { type: "button", style: "primary", height: "sm", color: accentColor, action: { type: "postback", label: "บันทึก", data: `action=save&id=${tempId}`, displayText: "บันทึก" } },
         ],
       },
     },

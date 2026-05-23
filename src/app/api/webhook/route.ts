@@ -1,18 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { supabase, addExpense, getMonthlySummary, CATEGORIES, type CategoryId } from "@/lib/supabase";
-import { parseTextExpense, ocrReceiptImage, buildReportText } from "@/lib/parser";
+import { supabase, addExpense, getMonthlySummary, type CategoryId } from "@/lib/supabase";
+import { parseTextExpense, ocrReceiptImage, buildFlexMessage, buildReportText } from "@/lib/parser";
 
 const pending = new Map<string, any>();
-
-const ALL_CATS: Record<string, { label: string; color: string }> = {
-  personal:    { label: "ส่วนตัว",      color: "#6366f1" },
-  with_layers: { label: "WITH LAYERS",   color: "#f59e0b" },
-  met:         { label: "MET Furniture", color: "#10b981" },
-  steel_s2000: { label: "S-2000",        color: "#ef4444" },
-  south_steel: { label: "เหล็กใต้",      color: "#f97316" },
-  other:       { label: "อื่นๆ",         color: "#8b5cf6" },
-};
 
 const DEFAULT_CATS = ["personal", "other"];
 
@@ -66,56 +57,6 @@ async function getImage(msgId: string): Promise<{ base64: string; mediaType: str
   return { base64: Buffer.from(buf).toString("base64"), mediaType: res.headers.get("content-type") || "image/jpeg" };
 }
 
-function buildFlexMessage(item: any, tempId: string, groupCats: string[]) {
-  const catLabel = ALL_CATS[item.category]?.label || "อื่นๆ";
-
-  // Split categories into rows of 3
-  const rows: string[][] = [];
-  for (let i = 0; i < groupCats.length; i += 3) rows.push(groupCats.slice(i, i + 3));
-
-  return {
-    type: "flex",
-    altText: `${item.vendor} ${Number(item.amount).toLocaleString("th-TH")} บาท`,
-    contents: {
-      type: "bubble",
-      styles: { body: { backgroundColor: "#ffffff" }, footer: { backgroundColor: "#f8f8f8" } },
-      body: {
-        type: "box", layout: "vertical", spacing: "sm", paddingAll: "20px",
-        contents: [
-          { type: "text", text: item.vendor, weight: "bold", size: "lg", color: "#111111" },
-          { type: "text", text: `${Number(item.amount).toLocaleString("th-TH")} บาท`, size: "xxl", weight: "bold", color: "#6366f1", margin: "xs" },
-          { type: "separator", margin: "md" },
-          { type: "box", layout: "horizontal", margin: "md", contents: [
-            { type: "text", text: "หมวด", size: "sm", color: "#888888", flex: 2 },
-            { type: "text", text: catLabel, size: "sm", color: "#111111", flex: 3, weight: "bold" },
-          ]},
-          ...(item.sub_category ? [{ type: "box", layout: "horizontal", contents: [
-            { type: "text", text: "หมวดย่อย", size: "sm", color: "#888888", flex: 2 },
-            { type: "text", text: item.sub_category, size: "sm", color: "#111111", flex: 3, weight: "bold" },
-          ]}] : []),
-          { type: "separator", margin: "md" },
-          { type: "text", text: "เปลี่ยนหมวด:", size: "xs", color: "#aaaaaa", margin: "md" },
-          ...rows.map(row => ({
-            type: "box", layout: "horizontal", spacing: "xs", margin: "xs",
-            contents: row.map(id => ({
-              type: "button", height: "sm", flex: 1,
-              style: id === item.category ? "primary" : "secondary",
-              action: { type: "postback", label: ALL_CATS[id]?.label || id, data: `action=cat&id=${tempId}&cat=${id}`, displayText: ALL_CATS[id]?.label || id },
-            })),
-          })),
-        ],
-      },
-      footer: {
-        type: "box", layout: "horizontal", spacing: "sm", paddingAll: "14px",
-        contents: [
-          { type: "button", style: "secondary", flex: 1, height: "sm", action: { type: "postback", label: "ยกเลิก", data: `action=cancel&id=${tempId}`, displayText: "ยกเลิก" } },
-          { type: "button", style: "primary", flex: 2, height: "sm", color: "#6366f1", action: { type: "postback", label: "บันทึก", data: `action=save&id=${tempId}`, displayText: "บันทึก" } },
-        ],
-      },
-    },
-  };
-}
-
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
   const sig = req.headers.get("x-line-signature") || "";
@@ -143,10 +84,11 @@ export async function POST(req: NextRequest) {
           continue;
         }
         if (text === "/help" || text === "/คู่มือ") {
-          await reply(replyToken, [{ type: "text", text: `วิธีใช้งาน\n\nถ่ายรูปใบเสร็จ → Bot อ่านอัตโนมัติ\n\nพิมพ์รายการ เช่น:\n"ค่าน้ำมัน 450"\n"Kerry 1200"\n\n/report → สรุปเดือนนี้\n/link → Dashboard กลุ่มนี้` }]);
+          await reply(replyToken, [{ type: "text", text: `วิธีใช้งาน\n\nถ่ายรูปใบเสร็จ → Bot อ่านอัตโนมัติ\n\nพิมพ์รายการ เช่น:\n"ค่าน้ำมัน 450"\n"รับ 50000 เงินเดือน"\n\n/report → สรุปเดือนนี้\n/link → Dashboard` }]);
           continue;
         }
 
+        // Handle pending edit
         const userPendingKey = Array.from(pending.keys()).find(k => k.startsWith(`${userId}_`) && pending.get(k).awaitingEdit);
         if (userPendingKey) {
           const item = pending.get(userPendingKey);
@@ -164,9 +106,9 @@ export async function POST(req: NextRequest) {
         if (parsed && parsed.amount > 0) {
           await ensureGroupConfig(groupId);
           const groupCats = await getGroupCategories(groupId);
-          // If parsed category not in group's cats, default to first cat
-          if (!groupCats.includes(parsed.category)) parsed.category = groupCats[0] as CategoryId;
-
+          if (parsed.type === "expense" && !groupCats.includes(parsed.category)) {
+            parsed.category = groupCats[0] as CategoryId;
+          }
           const tempId = `${userId}_${Date.now()}`;
           const name = await getProfile(userId);
           pending.set(tempId, { ...parsed, added_by: name, line_user_id: userId, group_id: groupId, replyTarget: groupId, awaitingEdit: false });
@@ -190,7 +132,9 @@ export async function POST(req: NextRequest) {
 
         await ensureGroupConfig(groupId);
         const groupCats = await getGroupCategories(groupId);
-        if (!groupCats.includes(parsed.category)) parsed.category = groupCats[0] as CategoryId;
+        if (parsed.type === "expense" && !groupCats.includes(parsed.category)) {
+          parsed.category = groupCats[0] as CategoryId;
+        }
 
         const tempId = `${userId}_${Date.now()}`;
         const name = await getProfile(userId);
@@ -221,6 +165,18 @@ export async function POST(req: NextRequest) {
           await reply(replyToken, [buildFlexMessage(item, tempId, groupCats) as any]);
         }
 
+        if (action === "edit_amount") {
+          item.awaitingEdit = true;
+          pending.set(tempId, item);
+          await reply(replyToken, [{ type: "text", text: "พิมพ์จำนวนเงินใหม่ได้เลยครับ เช่น 450" }]);
+        }
+
+        if (action === "edit_vendor") {
+          item.awaitingEdit = true;
+          pending.set(tempId, item);
+          await reply(replyToken, [{ type: "text", text: "พิมพ์ชื่อร้านค้าหรือรายการใหม่ได้เลยครับ" }]);
+        }
+
         if (action === "save") {
           await addExpense({
             date: item.date || new Date().toISOString().split("T")[0],
@@ -232,9 +188,10 @@ export async function POST(req: NextRequest) {
             income_category: item.income_category || "",
           });
           pending.delete(tempId);
-          const cat = ALL_CATS[item.category];
+          const isIncome = item.type === "income";
+          const label = isIncome ? (item.income_category || "รายรับ") : item.category;
           const subLine = item.sub_category ? ` (${item.sub_category})` : "";
-          await push(itemTarget, [{ type: "text", text: `บันทึกแล้วครับ!\n\n${item.vendor}\n${Number(item.amount).toLocaleString("th-TH")} บาท\n${cat?.label || item.category}${subLine}` }]);
+          await push(itemTarget, [{ type: "text", text: `บันทึกแล้วครับ!\n\n${item.vendor}\n${Number(item.amount).toLocaleString("th-TH")} บาท\n${label}${subLine}` }]);
         }
 
         if (action === "cancel") {
