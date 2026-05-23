@@ -26,6 +26,8 @@ export async function POST(req: NextRequest) {
       line_user_id: b.line_user_id || "liff",
       date: b.date || new Date().toISOString().split("T")[0],
       group_id: b.group_id || "default",
+      type: b.type || "expense",
+      income_category: b.income_category || "",
     });
   }
 
