@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getExpenses, getMonthlySummary, addExpense, updateExpense } from "@/lib/supabase";
+import { getExpenses, getMonthlySummary, addExpense, updateExpense, supabase } from "@/lib/supabase";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -7,9 +7,24 @@ export async function GET(req: NextRequest) {
   const month = searchParams.get("month") || new Date().toISOString().slice(0, 7);
   const category = searchParams.get("category") || undefined;
   const group_id = searchParams.get("group_id") || "default";
+  const months = parseInt(searchParams.get("months") || "6");
 
   try {
     if (type === "summary") return NextResponse.json(await getMonthlySummary(month, group_id));
+
+    if (type === "monthly_trend") {
+      const results = [];
+      for (let i = months - 1; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(1);
+        d.setMonth(d.getMonth() - i);
+        const m = d.toISOString().slice(0, 7);
+        const summary = await getMonthlySummary(m, group_id);
+        results.push({ month: m, ...summary });
+      }
+      return NextResponse.json(results);
+    }
+
     return NextResponse.json(await getExpenses({ month, category, group_id }));
   } catch (err) {
     console.error(err);
