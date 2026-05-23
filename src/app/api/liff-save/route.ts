@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
       added_by: b.added_by || "LINE",
       line_user_id: b.line_user_id || "liff",
       date: b.date || new Date().toISOString().split("T")[0],
+      group_id: b.group_id || "default",
     });
   }
 
