@@ -6,10 +6,11 @@ export async function GET(req: NextRequest) {
   const type = searchParams.get("type") || "list";
   const month = searchParams.get("month") || new Date().toISOString().slice(0, 7);
   const category = searchParams.get("category") || undefined;
+  const group_id = searchParams.get("group_id") || "default";
 
   try {
-    if (type === "summary") return NextResponse.json(await getMonthlySummary(month));
-    return NextResponse.json(await getExpenses({ month, category }));
+    if (type === "summary") return NextResponse.json(await getMonthlySummary(month, group_id));
+    return NextResponse.json(await getExpenses({ month, category, group_id }));
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: "Failed" }, { status: 500 });
@@ -22,14 +23,15 @@ export async function POST(req: NextRequest) {
     vendor: b.vendor, amount: parseFloat(b.amount),
     category: b.category, sub_category: b.sub_category || "",
     note: b.note || "", added_by: b.added_by || "Web",
-    line_user_id: "web", date: b.date || new Date().toISOString().split("T")[0],
+    line_user_id: "web",
+    date: b.date || new Date().toISOString().split("T")[0],
+    group_id: b.group_id || "default",
   });
   return NextResponse.json({ ok: true });
 }
 
 export async function PATCH(req: NextRequest) {
-  const b = await req.json();
-  const { id, ...updates } = b;
+  const { id, ...updates } = await req.json();
   await updateExpense(id, updates);
   return NextResponse.json({ ok: true });
 }
