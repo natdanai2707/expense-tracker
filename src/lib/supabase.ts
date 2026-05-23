@@ -14,12 +14,23 @@ export const CATEGORIES = {
   other:       { label: "อื่นๆ",         color: "#8b5cf6" },
 } as const;
 
+export const INCOME_CATEGORIES = [
+  "เงินเดือน",
+  "รายรับจาก MET",
+  "รายรับจาก With Layers",
+  "เงินปันผล",
+  "ค่าเช่า",
+  "เงินคืนบัตรเครดิต",
+  "รายรับจากอื่นๆ",
+] as const;
+
 export const PERSONAL_SUB_CATEGORIES = [
   "ค่าอาหาร","อาหารนอกบ้าน/คาเฟ่","ค่าที่พัก/สาธารณูปโภค","ค่าเดินทาง",
   "ค่ารักษาพยาบาล","ช้อปปิ้ง","สันทนาการ","ท่องเที่ยว","ของขวัญ","การออม/ลงทุน","อื่นๆ",
 ] as const;
 
 export type CategoryId = keyof typeof CATEGORIES;
+export type IncomeCategory = typeof INCOME_CATEGORIES[number];
 
 export interface Expense {
   id?: string;
@@ -32,6 +43,8 @@ export interface Expense {
   added_by: string;
   line_user_id: string;
   group_id: string;
+  type: "income" | "expense";
+  income_category: string;
   created_at?: string;
 }
 
@@ -47,7 +60,7 @@ export async function updateExpense(id: string, updates: Partial<Expense>) {
   return data;
 }
 
-export async function getExpenses(options?: { category?: string; month?: string; group_id?: string }) {
+export async function getExpenses(options?: { category?: string; month?: string; group_id?: string; type?: string }) {
   let query = supabase.from("expenses").select("*")
     .order("date", { ascending: false })
     .order("created_at", { ascending: false });
@@ -55,6 +68,7 @@ export async function getExpenses(options?: { category?: string; month?: string;
   if (options?.category) query = query.eq("category", options.category);
   if (options?.month) query = query.gte("date", `${options.month}-01`).lte("date", `${options.month}-31`);
   if (options?.group_id) query = query.eq("group_id", options.group_id);
+  if (options?.type) query = query.eq("type", options.type);
 
   const { data, error } = await query;
   if (error) throw error;
@@ -67,9 +81,12 @@ export async function getMonthlySummary(month?: string, group_id?: string) {
 
   const summary = {
     month: targetMonth,
-    total: 0,
+    totalExpense: 0,
+    totalIncome: 0,
+    net: 0,
     count: expenses.length,
     byCategory: {} as Record<string, { total: number; count: number; label: string; color: string; bySubCategory: Record<string, number> }>,
+    byIncomeCategory: {} as Record<string, number>,
   };
 
   for (const [id, cat] of Object.entries(CATEGORIES)) {
@@ -77,17 +94,24 @@ export async function getMonthlySummary(month?: string, group_id?: string) {
   }
 
   for (const e of expenses) {
-    summary.total += e.amount;
-    if (summary.byCategory[e.category]) {
-      summary.byCategory[e.category].total += e.amount;
-      summary.byCategory[e.category].count += 1;
-      if (e.sub_category) {
-        summary.byCategory[e.category].bySubCategory[e.sub_category] =
-          (summary.byCategory[e.category].bySubCategory[e.sub_category] || 0) + e.amount;
+    if (e.type === "income") {
+      summary.totalIncome += e.amount;
+      const key = e.income_category || "รายรับจากอื่นๆ";
+      summary.byIncomeCategory[key] = (summary.byIncomeCategory[key] || 0) + e.amount;
+    } else {
+      summary.totalExpense += e.amount;
+      if (summary.byCategory[e.category]) {
+        summary.byCategory[e.category].total += e.amount;
+        summary.byCategory[e.category].count += 1;
+        if (e.sub_category) {
+          summary.byCategory[e.category].bySubCategory[e.sub_category] =
+            (summary.byCategory[e.category].bySubCategory[e.sub_category] || 0) + e.amount;
+        }
       }
     }
   }
 
+  summary.net = summary.totalIncome - summary.totalExpense;
   return summary;
 }
 
