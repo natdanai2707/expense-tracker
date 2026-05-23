@@ -228,6 +228,8 @@ export async function POST(req: NextRequest) {
             category: item.category, sub_category: item.sub_category || "",
             note: item.note || "", added_by: item.added_by,
             line_user_id: item.line_user_id, group_id: item.group_id || groupId,
+            type: item.type || "expense",
+            income_category: item.income_category || "",
           });
           pending.delete(tempId);
           const cat = ALL_CATS[item.category];
