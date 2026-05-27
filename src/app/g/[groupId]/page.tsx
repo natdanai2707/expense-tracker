@@ -72,7 +72,8 @@ export default function GroupPage({ params }: { params: Promise<{ groupId: strin
   const getCat = (id: string) => cats.find(c => c.id === id) || ALL_CATS[id] || { label: id, color: "#8b5cf6" };
 
   const save = async () => {
-    if (!form.vendor || !form.amount) return;
+    if (!form.amount) return;
+    if (entryType === "expense" && !form.vendor) return;
     setSaving(true);
     const payload = entryType === "income"
       ? { vendor: form.income_category, amount: form.amount, category: "other", sub_category: "", note: form.note, date: form.date, group_id: groupId, type: "income", income_category: form.income_category }
@@ -87,6 +88,11 @@ export default function GroupPage({ params }: { params: Promise<{ groupId: strin
   const saveEdit = async () => {
     if (!editingId) return;
     await fetch("/api/expenses", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: editingId, ...editForm }) });
+    setEditingId(null); load();
+  };
+  const deleteItem = async (id: string) => {
+    if (!confirm("ลบรายการนี้?")) return;
+    await fetch("/api/expenses", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
     setEditingId(null); load();
   };
   const saveBudgets = async () => {
@@ -136,7 +142,6 @@ export default function GroupPage({ params }: { params: Promise<{ groupId: strin
 
           {/* ── Tab 0: รายการ ── */}
           {tab === 0 && <>
-            {/* Net summary */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
               <div style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.25)", borderRadius: 12, padding: "12px 14px" }}>
                 <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>รายรับ</div>
@@ -152,7 +157,6 @@ export default function GroupPage({ params }: { params: Promise<{ groupId: strin
               </div>
             </div>
 
-            {/* Type filter */}
             <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
               {[["all","ทั้งหมด"],["income","รายรับ"],["expense","รายจ่าย"]].map(([v,l]) => (
                 <button key={v} onClick={() => setTypeFilter(v as any)}
@@ -245,11 +249,7 @@ export default function GroupPage({ params }: { params: Promise<{ groupId: strin
                             </div>
                           )}
                           <div style={{ display: "flex", gap: 7 }}>
-                            <button onClick={async () => {
-                              if (!confirm("ลบรายการนี้?")) return;
-                              await fetch("/api/expenses", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: editingId }) });
-                              setEditingId(null); load();
-                            }} style={{ flex: 1, padding: "9px", borderRadius: 9, border: "none", background: "#ef4444", color: "white", fontSize: 13, fontWeight: 600 }}>ลบ</button>
+                            <button onClick={() => deleteItem(editingId!)} style={{ flex: 1, padding: "9px", borderRadius: 9, border: "none", background: "#ef4444", color: "white", fontSize: 13, fontWeight: 600 }}>ลบ</button>
                             <button onClick={saveEdit} style={{ flex: 2, padding: "9px", borderRadius: 9, border: "none", background: "linear-gradient(135deg,#6366f1,#8b5cf6)", color: "white", fontSize: 13, fontWeight: 600 }}>บันทึก</button>
                             <button onClick={() => setEditingId(null)} style={{ flex: 1, padding: "9px", borderRadius: 9, border: "1px solid rgba(255,255,255,0.1)", background: "transparent", color: "#9ca3af", fontSize: 13 }}>ยกเลิก</button>
                           </div>
@@ -263,7 +263,6 @@ export default function GroupPage({ params }: { params: Promise<{ groupId: strin
 
           {/* ── Tab 1: Pie ── */}
           {tab === 1 && <>
-            {/* Income vs Expense summary */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 20 }}>
               <div style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.2)", borderRadius: 12, padding: "12px 14px" }}>
                 <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>รายรับ</div>
@@ -279,7 +278,6 @@ export default function GroupPage({ params }: { params: Promise<{ groupId: strin
               </div>
             </div>
 
-            {/* Expense pie */}
             {pieData.length > 0 && <>
               <div style={{ fontSize: 12, fontWeight: 600, color: "#9ca3af", marginBottom: 12 }}>สัดส่วนรายจ่าย</div>
               <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
@@ -304,10 +302,9 @@ export default function GroupPage({ params }: { params: Promise<{ groupId: strin
                   })()}
                   <circle cx="100" cy="100" r="45" fill="#0a0a0f" />
                   <text x="100" y="96" textAnchor="middle" fill="#e8e8f0" fontSize="10" fontFamily="sans-serif">รายจ่าย</text>
-                  <text x="100" y="110" textAnchor="middle" fill="#a5b4fc" fontSize="11" fontWeight="bold" fontFamily="sans-serif">{thb(pieTotal).replace("฿","฿")}</text>
+                  <text x="100" y="110" textAnchor="middle" fill="#a5b4fc" fontSize="11" fontWeight="bold" fontFamily="sans-serif">{thb(pieTotal)}</text>
                 </svg>
               </div>
-
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
                 {pieData.sort((a,b)=>b.total-a.total).map(cat => (
                   <div key={cat.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: `${cat.color}12`, border: `1px solid ${cat.color}30`, borderRadius: 12 }}>
@@ -324,7 +321,6 @@ export default function GroupPage({ params }: { params: Promise<{ groupId: strin
               </div>
             </>}
 
-            {/* Income breakdown */}
             {summary?.byIncomeCategory && Object.keys(summary.byIncomeCategory).length > 0 && (
               <div style={{ background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.15)", borderRadius: 14, padding: "14px" }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: "#10b981", marginBottom: 10 }}>รายรับแยกตามประเภท</div>
@@ -337,7 +333,6 @@ export default function GroupPage({ params }: { params: Promise<{ groupId: strin
               </div>
             )}
 
-            {/* Personal sub breakdown */}
             {summary?.byCategory?.personal?.bySubCategory && Object.keys(summary.byCategory.personal.bySubCategory).length > 0 && (
               <div style={{ marginTop: 12, background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.15)", borderRadius: 14, padding: "14px" }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: "#a5b4fc", marginBottom: 10 }}>ส่วนตัว — หมวดย่อย</div>
@@ -363,7 +358,6 @@ export default function GroupPage({ params }: { params: Promise<{ groupId: strin
           {tab === 2 && <>
             <div style={{ fontSize: 13, fontWeight: 600, color: "#9ca3af", marginBottom: 16 }}>รายรับ vs รายจ่าย (6 เดือน)</div>
             {trend.length === 0 ? <div style={{ textAlign: "center", padding: 40, color: "#4b5563" }}>ไม่มีข้อมูล</div> : <>
-              {/* Grouped bar chart */}
               <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 4, height: 160, marginBottom: 8 }}>
                 {trend.map((t, i) => (
                   <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", height: "100%", gap: 2 }}>
@@ -379,7 +373,6 @@ export default function GroupPage({ params }: { params: Promise<{ groupId: strin
                 <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: "#10b981" }} /><span style={{ fontSize: 11, color: "#9ca3af" }}>รายรับ</span></div>
                 <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: "#6366f1" }} /><span style={{ fontSize: 11, color: "#9ca3af" }}>รายจ่าย</span></div>
               </div>
-
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {trend.map((t, i) => {
                   const net = (t.totalIncome||0) - (t.totalExpense||0);
@@ -456,7 +449,6 @@ export default function GroupPage({ params }: { params: Promise<{ groupId: strin
           {tab === 4 && <>
             <div style={{ fontSize: 13, fontWeight: 600, color: "#9ca3af", marginBottom: 14 }}>แนวโน้ม 6 เดือนล่าสุด</div>
             {trend.length === 0 ? <div style={{ textAlign: "center", padding: 40, color: "#4b5563" }}>ไม่มีข้อมูล</div> : <>
-              {/* Net trend line */}
               {(() => {
                 const vals = trend.map(t => (t.totalIncome||0) - (t.totalExpense||0));
                 const max = Math.max(...vals.map(Math.abs), 1);
@@ -537,8 +529,6 @@ export default function GroupPage({ params }: { params: Promise<{ groupId: strin
           <div style={{ background: "#13131f", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "20px 20px 0 0", padding: "20px 18px 36px", width: "100%", maxWidth: 480 }}
             onClick={e => e.stopPropagation()}>
             <div style={{ width: 36, height: 4, background: "rgba(255,255,255,0.2)", borderRadius: 2, margin: "0 auto 16px" }} />
-
-            {/* Income / Expense toggle */}
             <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
               {[["expense","รายจ่าย"],["income","รายรับ"]].map(([v,l]) => (
                 <button key={v} onClick={() => setEntryType(v as any)}
@@ -596,7 +586,8 @@ export default function GroupPage({ params }: { params: Promise<{ groupId: strin
 
             <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
               <button onClick={() => setShowAdd(false)} style={{ flex: 1, padding: 11, borderRadius: 11, border: "1px solid rgba(255,255,255,0.1)", background: "transparent", color: "#9ca3af", fontSize: 14 }}>ยกเลิก</button>
-              <button onClick={save} disabled={saving} style={{ flex: 2, padding: 11, borderRadius: 11, border: "none", background: saving?"#4b5563":entryType==="income"?"linear-gradient(135deg,#10b981,#059669)":"linear-gradient(135deg,#6366f1,#8b5cf6)", color: "white", fontSize: 14, fontWeight: 600 }}>
+              <button onClick={save} disabled={saving || (!form.amount) || (entryType === "expense" && !form.vendor)}
+                style={{ flex: 2, padding: 11, borderRadius: 11, border: "none", background: saving?"#4b5563":entryType==="income"?"linear-gradient(135deg,#10b981,#059669)":"linear-gradient(135deg,#6366f1,#8b5cf6)", color: "white", fontSize: 14, fontWeight: 600, opacity: (!form.amount || (entryType === "expense" && !form.vendor)) ? 0.5 : 1 }}>
                 {saving ? "กำลังบันทึก..." : entryType==="income" ? "บันทึกรายรับ" : "บันทึกรายจ่าย"}
               </button>
             </div>
