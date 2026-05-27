@@ -20,6 +20,8 @@ export default function LiffPage() {
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
+  const [lineUserId, setLineUserId] = useState("");
+  const [groupId, setGroupId] = useState("");
   const [form, setForm] = useState({
     tempId: "",
     vendor: "",
@@ -28,32 +30,44 @@ export default function LiffPage() {
     category: "personal",
     sub_category: "อื่นๆ",
     note: "",
+    type: "expense",
+    income_category: "",
   });
 
   useEffect(() => {
-    // Parse params from URL
     const params = new URLSearchParams(window.location.search);
     setForm(prev => ({
       ...prev,
-      tempId:       params.get("id") || "",
+      tempId:       params.get("id") || params.get("tempId") || "",
       vendor:       params.get("vendor") || "",
       amount:       params.get("amount") || "",
       date:         params.get("date") || new Date().toISOString().split("T")[0],
       category:     params.get("category") || "personal",
       sub_category: params.get("sub_category") || "อื่นๆ",
       note:         params.get("note") || "",
+      type:         params.get("type") || "expense",
+      income_category: params.get("income_category") || "",
     }));
 
-    // Init LIFF
+    setGroupId(params.get("group_id") || "");
+
     const initLiff = async () => {
       try {
         const liff = (await import("@line/liff")).default;
         await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID! });
         if (!liff.isLoggedIn()) liff.login();
+
+        const profile = await liff.getProfile();
+        setLineUserId(profile.userId);
+
+        // Try to get group context
+        const ctx = liff.getContext();
+        if (ctx?.groupId) setGroupId(ctx.groupId);
+
         setReady(true);
       } catch (e) {
         console.error(e);
-        setReady(true); // show form anyway
+        setReady(true);
       }
     };
     initLiff();
@@ -66,10 +80,13 @@ export default function LiffPage() {
       await fetch("/api/liff-save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          line_user_id: lineUserId,
+          group_id: groupId || "default",
+        }),
       });
       setDone(true);
-      // Close LIFF after 1.5s
       setTimeout(async () => {
         try {
           const liff = (await import("@line/liff")).default;
@@ -110,7 +127,6 @@ export default function LiffPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f8f8f8", fontFamily: "'IBM Plex Sans Thai', Sarabun, sans-serif" }}>
-      {/* Header */}
       <div style={{ background: "#6366f1", padding: "18px 20px", color: "white" }}>
         <div style={{ fontSize: 16, fontWeight: 700 }}>แก้ไขรายการ</div>
         <div style={{ fontSize: 12, opacity: 0.8, marginTop: 2 }}>ตรวจสอบและแก้ไขข้อมูลก่อนบันทึก</div>
@@ -152,7 +168,6 @@ export default function LiffPage() {
         )}
       </div>
 
-      {/* Fixed bottom bar */}
       <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, padding: "16px 20px", background: "white", borderTop: "1px solid #e5e7eb", display: "flex", gap: 10 }}>
         <button
           onClick={async () => { try { const liff = (await import("@line/liff")).default; liff.closeWindow(); } catch {} }}

@@ -189,7 +189,7 @@ export function buildFlexMessage(item: any, tempId: string, groupCats: string[])
           },
           {
             type: "button", style: "secondary", height: "sm",
-            action: { type: "uri", label: "แก้ไขในฟอร์ม", uri: `https://liff.line.me/2010171939-stHRasQT?tempId=${tempId}` },
+            action: { type: "uri", label: "แก้ไขในฟอร์ม", uri: `https://liff.line.me/2010171939-stHRasQT?id=${tempId}&vendor=${encodeURIComponent(item.vendor)}&amount=${item.amount}&date=${item.date||''}&category=${item.category}&sub_category=${encodeURIComponent(item.sub_category||'')}&note=${encodeURIComponent(item.note||'')}` },
           },
         ],
       },
