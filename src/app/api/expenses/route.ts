@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getExpenses, getMonthlySummary, addExpense, updateExpense } from "@/lib/supabase";
+import { getExpenses, getMonthlySummary, addExpense, updateExpense, supabase } from "@/lib/supabase";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -36,12 +36,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const b = await req.json();
   await addExpense({
-    vendor: b.vendor,
-    amount: parseFloat(b.amount),
-    category: b.category || "other",
-    sub_category: b.sub_category || "",
-    note: b.note || "",
-    added_by: b.added_by || "Web",
+    vendor: b.vendor, amount: parseFloat(b.amount),
+    category: b.category || "other", sub_category: b.sub_category || "",
+    note: b.note || "", added_by: b.added_by || "Web",
     line_user_id: "web",
     date: b.date || new Date().toISOString().split("T")[0],
     group_id: b.group_id || "default",
@@ -54,5 +51,12 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const { id, ...updates } = await req.json();
   await updateExpense(id, updates);
+  return NextResponse.json({ ok: true });
+}
+
+export async function DELETE(req: NextRequest) {
+  const { id } = await req.json();
+  const { error } = await supabase.from("expenses").delete().eq("id", id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

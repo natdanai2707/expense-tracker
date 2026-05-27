@@ -245,6 +245,11 @@ export default function GroupPage({ params }: { params: Promise<{ groupId: strin
                             </div>
                           )}
                           <div style={{ display: "flex", gap: 7 }}>
+                            <button onClick={async () => {
+                              if (!confirm("ลบรายการนี้?")) return;
+                              await fetch("/api/expenses", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: editingId }) });
+                              setEditingId(null); load();
+                            }} style={{ flex: 1, padding: "9px", borderRadius: 9, border: "none", background: "#ef4444", color: "white", fontSize: 13, fontWeight: 600 }}>ลบ</button>
                             <button onClick={saveEdit} style={{ flex: 2, padding: "9px", borderRadius: 9, border: "none", background: "linear-gradient(135deg,#6366f1,#8b5cf6)", color: "white", fontSize: 13, fontWeight: 600 }}>บันทึก</button>
                             <button onClick={() => setEditingId(null)} style={{ flex: 1, padding: "9px", borderRadius: 9, border: "1px solid rgba(255,255,255,0.1)", background: "transparent", color: "#9ca3af", fontSize: 13 }}>ยกเลิก</button>
                           </div>
