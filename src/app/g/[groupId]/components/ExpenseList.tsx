@@ -42,7 +42,14 @@ export function ExpenseList({ items, cats, editingId, onEdit, onSaveEdit, onDele
                     <span className="rounded-md px-1.5 py-0.5 text-[11px]" style={{ background: `${cat.color}20`, color: cat.color }}>{cat.label}</span>
                     {item.sub_category && <span className="rounded-md bg-white/5 px-1.5 py-0.5 text-[11px] text-ink-muted">{item.sub_category}</span>}
                   </div>
-                  {item.added_by && <div className="mt-0.5 text-[10px] text-ink-ghost">โดย {item.added_by}</div>}
+                  <div className="mt-0.5 flex items-center gap-2">
+                    {item.added_by && <span className="text-[10px] text-ink-ghost">โดย {item.added_by}</span>}
+                    {item.receipt_url && (
+                      <a href={item.receipt_url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-[10px] text-accent-soft underline">
+                        📎 ใบเสร็จ
+                      </a>
+                    )}
+                  </div>
                 </div>
                 <div className="shrink-0 text-right">
                   <div className={`mb-1.5 text-base font-bold tabular-nums ${isIncome ? "text-income" : "text-ink"}`}>{isIncome ? "+" : ""}{thb(item.amount)}</div>

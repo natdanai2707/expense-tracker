@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { addExpense, getMonthlySummary, ensureGroupConfig, getGroupCategories } from "@/lib/supabase";
 import { parseTextExpense, ocrReceiptImage, buildFlexMessage, buildReportText } from "@/lib/parser";
 import { reply, push, pushText, getProfileName, getImageContent } from "@/lib/line";
+import { uploadReceipt } from "@/lib/storage";
 import { setPending, getPending, deletePending, findAwaitingEdit, type PendingItem } from "@/lib/pending";
 import type { CategoryId } from "@/lib/constants";
 import { todayISO } from "@/lib/dates";
@@ -111,9 +112,12 @@ export async function POST(req: NextRequest) {
           parsed.category = groupCats[0] as CategoryId;
         }
 
+        // Store the original receipt image (best effort — never blocks the save).
+        const receiptUrl = await uploadReceipt(img.base64, img.mediaType, groupId);
+
         const tempId = `${userId}_${Date.now()}`;
         const name = await getProfileName(userId);
-        const item: PendingItem = { ...parsed, added_by: name, line_user_id: userId, group_id: groupId, replyTarget: groupId, awaitingEdit: false };
+        const item: PendingItem = { ...parsed, added_by: name, line_user_id: userId, group_id: groupId, replyTarget: groupId, awaitingEdit: false, receipt_url: receiptUrl };
         await setPending(tempId, item);
         await push(groupId, [buildFlexMessage(item, tempId, groupCats) as never]);
       }
@@ -155,6 +159,7 @@ export async function POST(req: NextRequest) {
             line_user_id: item.line_user_id, group_id: item.group_id || groupId,
             type: item.type || "expense",
             income_category: item.income_category || "",
+            receipt_url: item.receipt_url || null,
           });
           await deletePending(tempId);
           const isIncome = item.type === "income";

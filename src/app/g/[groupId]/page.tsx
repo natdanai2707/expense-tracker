@@ -15,6 +15,7 @@ import { TrendsTab } from "./components/TrendsTab";
 import { DailyTab } from "./components/DailyTab";
 import { BusinessTab } from "./components/BusinessTab";
 import { AddModal, type NewEntry } from "./components/AddModal";
+import { RecurringModal } from "./components/RecurringModal";
 import { Toast, type ToastData } from "./components/Toast";
 
 const TABS = ["รายการ", "รายวัน", "Pie", "Bar", "Budget", "Trends", "ธุรกิจ"];
@@ -30,6 +31,7 @@ export default function GroupPage({ params }: { params: Promise<{ groupId: strin
   const [catFilter, setCatFilter] = useState("all");
   const [filters, setFilters] = useState<Filters>({ q: "", min: "", max: "" });
   const [showAdd, setShowAdd] = useState(false);
+  const [showRecurring, setShowRecurring] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastData | null>(null);
   const deleteTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -168,6 +170,7 @@ export default function GroupPage({ params }: { params: Promise<{ groupId: strin
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button onClick={() => setShowRecurring(true)} className="rounded-pill border border-white/10 px-3 py-2 text-xs text-ink-muted" title="รายการอัตโนมัติ">🔁</button>
             <a href={`/api/export/${groupId}?month=${month}`} className="rounded-pill border border-white/10 px-3 py-2 text-xs text-ink-muted" title="ส่งออก CSV">⇩ CSV</a>
             <button onClick={() => setShowAdd(true)} className="btn-accent px-4 py-2 text-[13px]">+ เพิ่ม</button>
           </div>
@@ -235,6 +238,7 @@ export default function GroupPage({ params }: { params: Promise<{ groupId: strin
       </div>
 
       {showAdd && <AddModal cats={cats} onClose={() => setShowAdd(false)} onSubmit={addEntry} />}
+      {showRecurring && <RecurringModal groupId={groupId} cats={cats} onClose={() => setShowRecurring(false)} onError={(m) => showToast({ message: m, tone: "error" })} />}
       <Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>
   );

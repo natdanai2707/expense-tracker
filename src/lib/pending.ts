@@ -28,6 +28,7 @@ export interface PendingItem {
   group_id: string;
   replyTarget: string;
   awaitingEdit: boolean;
+  receipt_url?: string | null;
 }
 
 const TTL_MS = 15 * 60 * 1000; // 15 min
