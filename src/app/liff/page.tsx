@@ -20,6 +20,7 @@ export default function LiffPage() {
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
+  const [error, setError] = useState("");
   const [lineUserId, setLineUserId] = useState("");
   const [groupId, setGroupId] = useState("");
   const [form, setForm] = useState({
@@ -74,10 +75,12 @@ export default function LiffPage() {
   }, []);
 
   const handleSubmit = async () => {
-    if (!form.vendor || !form.amount) return;
+    const isIncome = form.type === "income";
+    if (!form.amount || (!isIncome && !form.vendor)) return;
     setSaving(true);
+    setError("");
     try {
-      await fetch("/api/liff-save", {
+      const res = await fetch("/api/liff-save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -86,17 +89,23 @@ export default function LiffPage() {
           group_id: groupId || "default",
         }),
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) {
+        throw new Error(data.error || `บันทึกไม่สำเร็จ (${res.status})`);
+      }
       setDone(true);
       setTimeout(async () => {
         try {
           const liff = (await import("@line/liff")).default;
           liff.closeWindow();
-        } catch {}
+        } catch { /* not in LIFF context */ }
       }, 1500);
     } catch (e) {
       console.error(e);
+      setError(e instanceof Error ? e.message : "เกิดข้อผิดพลาด ลองใหม่อีกครั้ง");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const inp = (label: string, key: string, type = "text", ph = "") => (
@@ -168,13 +177,18 @@ export default function LiffPage() {
         )}
       </div>
 
+      {error && (
+        <div style={{ position: "fixed", bottom: 78, left: 0, right: 0, padding: "10px 20px", background: "#fef2f2", color: "#b91c1c", fontSize: 13, textAlign: "center", borderTop: "1px solid #fecaca" }}>
+          ⚠️ {error}
+        </div>
+      )}
       <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, padding: "16px 20px", background: "white", borderTop: "1px solid #e5e7eb", display: "flex", gap: 10 }}>
         <button
           onClick={async () => { try { const liff = (await import("@line/liff")).default; liff.closeWindow(); } catch {} }}
           style={{ flex: 1, padding: 14, borderRadius: 12, border: "1px solid #e5e7eb", background: "white", color: "#6b7280", fontSize: 15, fontWeight: 500 }}>
           ปิด
         </button>
-        <button onClick={handleSubmit} disabled={saving || !form.vendor || !form.amount}
+        <button onClick={handleSubmit} disabled={saving || !form.amount || (form.type !== "income" && !form.vendor)}
           style={{ flex: 2, padding: 14, borderRadius: 12, border: "none", background: saving ? "#9ca3af" : "#6366f1", color: "white", fontSize: 15, fontWeight: 700 }}>
           {saving ? "กำลังบันทึก..." : "บันทึก →"}
         </button>
