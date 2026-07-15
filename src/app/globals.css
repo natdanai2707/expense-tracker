@@ -1,4 +1,35 @@
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: #0a0a0f; color: #e8e8f0; font-family: 'IBM Plex Sans Thai', 'Sarabun', sans-serif; -webkit-font-smoothing: antialiased; }
-input, button, select, textarea { font-family: inherit; }
-button { cursor: pointer; }
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-tap-highlight-color: transparent; }
+  body {
+    background: #0a0a0f;
+    color: #e8e8f0;
+    font-family: 'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  input, button, select, textarea { font-family: inherit; }
+  button { cursor: pointer; }
+  /* Hide scrollbars on horizontal scrollers */
+  .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+}
+
+@layer components {
+  .card { @apply rounded-card border border-line bg-white/[0.03]; }
+  .skeleton {
+    @apply relative overflow-hidden rounded-card bg-white/[0.04];
+  }
+  .skeleton::after {
+    content: "";
+    @apply absolute inset-0 -translate-x-full;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+    animation: shimmer 1.4s infinite;
+  }
+  .btn-accent {
+    @apply rounded-pill border-none bg-gradient-to-br from-accent-from to-accent-to font-semibold text-white;
+  }
+}
