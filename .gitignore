@@ -1,3 +1,6 @@
 node_modules/ 
 .next/ 
 .env.local 
+
+# next auto-generated
+next-env.d.ts
